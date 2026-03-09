@@ -1,0 +1,13 @@
+pyproject.toml
+setup.cfg
+src/napari_large_tiler/__init__.py
+src/napari_large_tiler/_reader.py
+src/napari_large_tiler/_tiling.py
+src/napari_large_tiler/_widget.py
+src/napari_large_tiler/napari.yaml
+src/napari_large_tiler.egg-info/PKG-INFO
+src/napari_large_tiler.egg-info/SOURCES.txt
+src/napari_large_tiler.egg-info/dependency_links.txt
+src/napari_large_tiler.egg-info/entry_points.txt
+src/napari_large_tiler.egg-info/requires.txt
+src/napari_large_tiler.egg-info/top_level.txt

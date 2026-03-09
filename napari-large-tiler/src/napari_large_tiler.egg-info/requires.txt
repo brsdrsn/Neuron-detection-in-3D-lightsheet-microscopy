@@ -1,0 +1,5 @@
+napari
+magicgui
+numpy
+dask
+zarr

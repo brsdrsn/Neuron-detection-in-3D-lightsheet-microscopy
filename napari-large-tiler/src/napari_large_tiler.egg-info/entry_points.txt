@@ -1,0 +1,2 @@
+[napari.manifest]
+napari-large-tiler = napari_large_tiler:napari.yaml

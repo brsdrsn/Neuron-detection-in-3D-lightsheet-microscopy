@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: napari-large-tiler
+Version: 0.1.0
+Summary: A tiling plugin for large Zarr images in napari
+Author: Your Name
+License: MIT
+Requires-Dist: napari
+Requires-Dist: magicgui
+Requires-Dist: numpy
+Requires-Dist: dask
+Requires-Dist: zarr
