@@ -1,0 +1,39 @@
+# Virtual environment (reinstall locally; see README)
+napari-env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build / install artifacts
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini
+
+# Local scratch (not part of the pipeline)
+scratch_folder/
+
+# Base YOLO checkpoints (Ultralytics auto-downloads on first train)
+yolov8n.pt
+yolo26n.pt
+
+# Junk
+Untitled
+
+# Optional: uncomment to exclude older experimental training runs
+# runs/detect/train/
+# runs/detect/train[0-9]/
+# runs/detect/train_yolo_five_tiles*/

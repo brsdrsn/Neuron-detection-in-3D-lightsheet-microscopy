@@ -1,0 +1,26 @@
+name: napari-large-tiler
+display_name: Large Image Tiler
+
+contributions:
+  commands:
+    - id: napari-large-tiler.tiler_widget
+      python_name: napari_large_tiler._widget:tiler_widget
+      title: Large Tiler Widget
+
+    - id: napari-large-tiler.next_tile
+      python_name: napari_large_tiler._widget:next_tile
+      title: Next Tile Button
+
+    - id: napari-large-tiler.prev_tile
+      python_name: napari_large_tiler._widget:prev_tile
+      title: Previous Tile Button
+
+  widgets:
+    - command: napari-large-tiler.tiler_widget
+      display_name: Large Tiler
+
+    - command: napari-large-tiler.next_tile
+      display_name: Next Tile
+
+    - command: napari-large-tiler.prev_tile
+      display_name: Previous Tile
