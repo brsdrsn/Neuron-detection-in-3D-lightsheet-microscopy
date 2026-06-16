@@ -22,6 +22,7 @@ import tifffile as tiff
 
 
 def yxz_to_zyx(arr):
+    """Transpose array data from mistaken (Y,X,Z) labeling to canonical (Z,Y,X)."""
     # (Y,X,Z) -> (Z,Y,X)
     return np.moveaxis(arr, 2, 0)
 
@@ -42,6 +43,7 @@ def tile_name_yxz_to_zyx(name: str) -> str:
 
 
 neurons_root = Path.home() / "Documents" / "neurons"
+# One-time migration: read old-axis masks, write corrected Z-Y-X masks
 in_dir = neurons_root / "tagged tiles" / "All positives old"
 out_dir = neurons_root / "tagged tiles" / "All positives new"
 out_dir.mkdir(parents=True, exist_ok=True)

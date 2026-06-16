@@ -35,6 +35,7 @@ from napari_large_tiler._tiling import (  # type: ignore  # noqa: E402
 
 
 def load_zarr_volume(path_with_optional_key: str) -> np.ndarray:
+    """Load and preprocess a Zarr chunk to (Z,Y,X) numpy array for Napari display."""
     vol = process_data(load_zarr(path_with_optional_key))
     if getattr(vol, "ndim", 0) != 3:
         raise ValueError(f"Expected processed 3D volume (Z,Y,X). Got shape {vol.shape}")
@@ -74,6 +75,7 @@ def main() -> None:
     if points.ndim != 2 or points.shape[1] != 3:
         raise ValueError(f"Expected points array shape (N,3). Got {points.shape}")
 
+    # Points must be in the same processed (Z,Y,X) axis order as the displayed volume
     points = points.astype(np.float32, copy=False)
 
     viewer = napari.Viewer()

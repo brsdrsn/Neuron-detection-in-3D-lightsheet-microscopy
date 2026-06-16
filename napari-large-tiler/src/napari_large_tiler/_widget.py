@@ -1,4 +1,6 @@
-# Dock widget
+# Napari dock widgets for browsing large Zarr volumes tile-by-tile.
+# Registered in napari.yaml as Plugins → Large Image Tiler.
+
 from pathlib import Path
 from typing import Annotated
 
@@ -11,20 +13,25 @@ from ._tiling import load_zarr, tile_array, get_tile, num_tiles, process_data
 
 
 class TileManager:
-    """Stores tiling state so the widget can navigate tiles."""
+    """Module-level singleton holding tiling state across widget button clicks."""
     def __init__(self):
-        self.data = None          # dask array of full dataset
-        self.tiles = None         # rechunked array
-        self.current_idx = (0,0,0)
+        self.data = None          # full processed Dask array (Z,Y,X)
+        self.tiles = None         # rechunked into tile blocks
+        self.current_idx = (0,0,0)  # current (tz, ty, tx) block index
         self.tile_shape = None
-        self.numblocks = None
-        self.layer = None
+        self.numblocks = None     # grid dimensions (bz, by, bx)
+        self.layer = None         # Napari image layer being updated on navigation
 
+
+# Shared state object — persists between Start Tiling / Next / Previous clicks
 tile_state = TileManager()
 
+
 def tile_name_from_idx(idx):
+    """Human-readable layer name matching folder naming: 'Tile z-y-x'."""
     z, y, x = idx
     return f"Tile {z}-{y}-{x}"
+
 
 @magic_factory(call_button="Start Tiling")
 def tiler_widget(
@@ -35,7 +42,8 @@ def tiler_widget(
     viewer: "napari.viewer.Viewer" = None,
 ):
     """
-    Napari UI widget for tiling and navigating large Zarr images.
+    Main widget: load a Zarr chunk, tile it, and display the first block.
+    User sets tile dimensions then clicks 'Start Tiling'.
     """
     path = Path(zarr_path).resolve()
     if not path.exists():
@@ -49,12 +57,12 @@ def tiler_widget(
             "(e.g. your_dataset.zarr or a scale level like …/dataset.zarr/0)."
         ) from None
 
-    # ---- load data ----
+    # Store tiling state for navigation widgets
     tile_state.data = full_data
     tile_state.tiles = tile_array(full_data, (tile_z, tile_y, tile_x))
     tile_state.numblocks = num_tiles(tile_state.tiles)
 
-    # ---- first tile ----
+    # Display tile (0, 0, 0)
     tile_state.current_idx = (0, 0, 0)
     first_tile = get_tile(tile_state.tiles, tile_state.current_idx)
 
@@ -68,8 +76,10 @@ def tiler_widget(
 
     return None
 
+
 @magic_factory(call_button="Next Tile")
 def next_tile(viewer: "napari.viewer.Viewer"):
+    """Advance to the next tile: X first, then Y, then Z (wraps at edges)."""
     z, y, x = tile_state.current_idx
     bz, by, bx = tile_state.numblocks
 
@@ -87,14 +97,17 @@ def next_tile(viewer: "napari.viewer.Viewer"):
     tile_state.current_idx = (z, y, x)
     tile = get_tile(tile_state.tiles, tile_state.current_idx)
 
+    # Update existing layer in-place (avoids re-adding layers)
     layer = tile_state.layer or viewer.layers[0]
     layer.data = tile
     layer.name = tile_name_from_idx(tile_state.current_idx)
 
     return None
 
+
 @magic_factory(call_button="Previous Tile")
 def prev_tile(viewer: "napari.viewer.Viewer"):
+    """Go to the previous tile (inverse of next_tile navigation order)."""
     z, y, x = tile_state.current_idx
     bz, by, bx = tile_state.numblocks
 

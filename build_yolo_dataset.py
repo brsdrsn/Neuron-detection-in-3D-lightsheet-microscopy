@@ -29,6 +29,7 @@ import tifffile as tiff
 from PIL import Image
 
 def to_uint8(img: np.ndarray) -> np.ndarray:
+    """Percentile-normalize a 2D slice to 8-bit PNG range (same as inference scripts)."""
     img = img.astype(np.float32)
     lo, hi = np.percentile(img, (1, 99.8))
     img = np.clip((img - lo) / (hi - lo + 1e-8), 0, 1)
@@ -87,10 +88,12 @@ def read_volume_tiff(tile_path: Path) -> np.ndarray:
     return np.stack(frames, axis=0)
 
 # ---- CONFIG ----
+# All paths below are relative to ~/Documents/neurons/ (outside this repo).
 neurons_root = Path.home() / "Documents" / "neurons"
 tagged_tiles_root = neurons_root / "tagged tiles"
 # Union dataset: new chunk folders + the original five-tile set used for yolo_five_tiles.
 legacy_five_tile_ids = ["0-5-0", "1-3-0", "1-4-0", "2-2-0", "3-3-0"]
+# Each root is either a chunk folder (contains tile z-y-x subdirs) or a single tile dir.
 dataset_roots = [
     tagged_tiles_root / "1st chunk",
     tagged_tiles_root / "2nd chunk",
@@ -99,12 +102,12 @@ dataset_roots = [
     tagged_tiles_root / "2nd tile",   # backward compatibility
 ]
 
+# YOLO dataset output directory (images/, labels/, data.yaml written here)
 out_root = str(neurons_root / "yolo_tagged_tiles_v3")
-train_ratio = 0.8
+train_ratio = 0.8  # 80% train / 20% val split at the slice level
 seed = 0
 
-# If you want to enforce 1:3 pos:neg for this tile, set neg_per_pos=3
-# If you want "use all slices", set neg_per_pos=None
+# Negative-slice subsampling: set neg_per_pos=3 for 1:3 pos:neg ratio, or None for all slices
 neg_per_pos = None
 
 # ---- OUTPUT DIRS ----
@@ -120,6 +123,7 @@ all_samples = []
 
 
 def bbox2d_from_instance_slice(inst2d: np.ndarray, obj_id: int):
+    """Axis-aligned pixel bounding box for one labeled object on a 2D slice."""
     ys, xs = np.where(inst2d == obj_id)
     if xs.size == 0:
         return None
@@ -129,6 +133,7 @@ def bbox2d_from_instance_slice(inst2d: np.ndarray, obj_id: int):
 
 
 def yolo_line(x1, y1, x2, y2, W, H, cls=0):
+    """Convert pixel bbox to YOLO normalized format: class cx cy w h (all 0–1)."""
     xc = ((x1 + x2) / 2) / W
     yc = ((y1 + y2) / 2) / H
     bw = (x2 - x1) / W
@@ -166,6 +171,7 @@ def create_yolo_labels_from_object_masks(tile_dir: Path, tile_id: str) -> Path |
     dtype = np.uint16 if len(obj_paths) < 65535 else np.uint32
     inst = np.zeros((Z, Y, X), dtype=dtype)
 
+    # Merge all per-object binary masks into one instance-labeled volume (1, 2, 3, …)
     next_id = 1
     for p in obj_paths:
         m = tiff.imread(p)
@@ -221,6 +227,7 @@ def resolve_tile_paths(tile_dir: Path, tile_id: str) -> tuple[Path, Path]:
     return tile_path, labels_src_dir
 
 
+# Discover every tile folder across all configured dataset roots
 all_tile_dirs = []
 seen_roots = set()
 for root in dataset_roots:
@@ -271,6 +278,7 @@ for tile_dir in all_tile_dirs:
     sample_id = f"{sample_prefix}_{tile_id}"
     print(f"\nLoaded tile {sample_id}: shape={vol.shape}, dtype={vol.dtype}")
 
+    # Classify each Z slice as positive (has boxes) or negative (empty label file)
     all_z = list(range(Z))
     pos_z, neg_z = [], []
 
@@ -315,7 +323,7 @@ print(f"\nTotal samples across all tiles: {len(all_samples)}")
 if not all_samples:
     raise RuntimeError("No samples were collected from the configured tiles.")
 
-# ---- SPLIT INTO TRAIN/VAL ----
+# ---- SPLIT INTO TRAIN/VAL (random at slice level, not tile level) ----
 random.shuffle(all_samples)
 n_train = int(len(all_samples) * train_ratio)
 train_samples = all_samples[:n_train]
@@ -323,7 +331,7 @@ val_samples = all_samples[n_train:]
 
 print(f"train slices: {len(train_samples)} val slices: {len(val_samples)}")
 
-# ---- EXPORT ----
+# ---- EXPORT PNG slices + matching YOLO label .txt files ----
 def export_split(sample_list, img_dir, lab_dir):
     for sample in sample_list:
         tile_id = sample["tile_id"]
@@ -348,6 +356,7 @@ def export_split(sample_list, img_dir, lab_dir):
 export_split(train_samples, img_train, lab_train)
 export_split(val_samples, img_val, lab_val)
 
+# Ultralytics expects this YAML to locate train/val images and class names
 data_yaml = Path(out_root) / "data.yaml"
 data_yaml.write_text(
     "\n".join(

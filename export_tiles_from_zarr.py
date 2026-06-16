@@ -44,6 +44,7 @@ from napari_large_tiler._tiling import (  # type: ignore  # noqa: E402
 )
 
 
+# Predefined Zarr ↔ tagged-tile folder mappings (edit paths for your machine)
 DEFAULT_JOBS: list[tuple[str, Path, Path]] = [
     (
         "1st chunk",
@@ -70,6 +71,7 @@ DEFAULT_JOBS: list[tuple[str, Path, Path]] = [
 
 
 def parse_tile_id(folder_name: str) -> tuple[int, int, int] | None:
+    """Parse 'tile z-y-x' folder name into integer tile indices."""
     if not folder_name.startswith("tile "):
         return None
     rest = folder_name[len("tile ") :].strip()
@@ -84,6 +86,7 @@ def parse_tile_id(folder_name: str) -> tuple[int, int, int] | None:
 
 
 def discover_tile_dirs(tagged_root: Path) -> list[Path]:
+    """List all tile z-y-x subfolders under a chunk's tagged-tiles directory."""
     return sorted(p for p in tagged_root.iterdir() if p.is_dir() and p.name.startswith("tile "))
 
 
@@ -133,6 +136,7 @@ def rebuild_job(
             print(f"dry-run: would rebuild {td.name} -> {out_path.name} using blocks[({z},{y},{x})]")
         return
 
+    # Same preprocessing + tiling as napari-large-tiler and infer_chunk_global_coords
     full = process_data(load_zarr(str(zarr_path)))
     tiles = tile_array(full, tile_shape)
     bz, by, bx = num_tiles(tiles)
@@ -155,6 +159,7 @@ def rebuild_job(
         tmp_path = td / f"Tile {z}-{y}-{x}.tmp.tif"
 
         print(f"rebuilding {td.name} -> {out_path.name} ...")
+        # Extract one 512³ block and write as multi-page TIFF (one page per Z slice)
         tile_da = get_tile(tiles, (z, y, x))
         tile_np = tile_da.compute()
 
@@ -165,6 +170,7 @@ def rebuild_job(
         if compression:
             kwargs["compression"] = compression
 
+        # Atomic write: tmp file then rename to avoid partial TIFF on crash
         tiff.imwrite(str(tmp_path), tile_np, **kwargs)
         tmp_path.replace(out_path)
 

@@ -40,6 +40,7 @@ _PLUGIN_SRC = _REPO_ROOT / "napari-large-tiler" / "src"
 if _PLUGIN_SRC.is_dir():
     sys.path.insert(0, str(_PLUGIN_SRC))
 
+# Shared tiling utilities — same grid as napari-large-tiler and export_tiles_from_zarr
 from napari_large_tiler._tiling import (  # type: ignore  # noqa: E402
     get_tile,
     load_zarr,
@@ -90,6 +91,7 @@ def _normalize_raw_shape_for_mapping(raw_shape: tuple[int, ...]) -> tuple[int, i
 
 
 def to_uint8(img: np.ndarray) -> np.ndarray:
+    """Percentile-normalize a 2D slice to 8-bit (must match training preprocessing)."""
     img = img.astype(np.float32)
     lo, hi = np.percentile(img, (1, 99.8))
     img = np.clip((img - lo) / (hi - lo + 1e-8), 0, 1)
@@ -98,6 +100,7 @@ def to_uint8(img: np.ndarray) -> np.ndarray:
 
 @dataclass
 class DetectionRecord:
+    """One neuron detection in chunk-global (Z, Y, X) coordinates plus metadata."""
     z: float
     y: float
     x: float
@@ -179,6 +182,7 @@ def parse_tile_index(tile_text: str) -> tuple[int, int, int]:
 
 
 def infer_chunk_id(zarr_path: Path) -> str:
+    """Derive a short chunk ID from the Zarr path (e.g. trailing \\1 -> '1')."""
     # Prefer terminal numeric component, e.g. ...\\...zarr\\1
     for part in reversed(zarr_path.parts):
         if part.isdigit():
@@ -283,6 +287,7 @@ def main() -> None:
     print(f"Loading model: {weights}")
     model = YOLO(str(weights))
 
+    # Load full chunk, reorder axes to (Z,Y,X), then split into Dask tiles
     print(f"Loading chunk: {zarr_path}")
     raw = load_zarr(str(zarr_path))
     raw_shape_full = tuple(getattr(raw, "shape", ()))
@@ -318,6 +323,7 @@ def main() -> None:
         f"tile_{only_tile[0]}-{only_tile[1]}-{only_tile[2]}" if only_tile is not None else "all_tiles"
     )
 
+    # Triple nested loop over tile grid (same order as napari-large-tiler navigation)
     for tz in range(bz):
         for ty in range(by):
             for tx in range(bx):
@@ -331,6 +337,7 @@ def main() -> None:
 
                 tile_detection_count = 0
                 local_z_size = tile_np.shape[0]
+                # Run YOLO independently on each Z slice within this tile
                 for lz in range(local_z_size):
                     u8 = to_uint8(tile_np[lz])
                     img3 = np.stack([u8, u8, u8], axis=-1)
@@ -344,7 +351,8 @@ def main() -> None:
                     confs = result.boxes.conf.cpu().numpy()
 
                     for (x1, y1, x2, y2), conf in zip(xyxy, confs):
-                        # Convert tile-local center to chunk-global center.
+                        # Map tile-local box center -> chunk-global (Z,Y,X):
+                        #   global = tile_index * tile_size + local_offset
                         gx = tx * args.tile_x + 0.5 * (x1 + x2)
                         gy = ty * args.tile_y + 0.5 * (y1 + y2)
                         gz = tz * args.tile_z + lz
@@ -389,6 +397,7 @@ def main() -> None:
         if max_tiles is not None and processed_tiles >= max_tiles:
             break
 
+    # Write all output formats (full metadata CSV, NPY point cloud, Napari CSVs)
     stem = f"chunk_{chunk_id}_{run_label}"
     csv_path = out_dir / f"global_neuron_centers_{stem}.csv"
     npy_path = out_dir / f"global_neuron_centers_{stem}.npy"
@@ -408,6 +417,7 @@ def main() -> None:
         if raw_shape is not None
         else None
     )
+    # Raw-axis CSV remaps Z,Y,X coords back to the original Zarr axis order for Napari overlay
     if axis_map is not None:
         export_napari_points_csv_raw_axes(
             napari_points_csv_raw_axes_path, records, processed_to_raw_axis_map=axis_map

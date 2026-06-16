@@ -61,7 +61,7 @@ def plot_neuron_density_mip_xy_from_raw_axes(
     csv_path = Path(csv_path)
     df = pd.read_csv(csv_path)
 
-    # Auto-detect schema.
+    # Auto-detect whether CSV uses Napari axis-* columns or x/y/z columns
     if x_col is None or y_col is None:
         axis_cols = ["axis-0", "axis-1", "axis-2"]
         if set(axis_cols).issubset(df.columns):
@@ -73,6 +73,7 @@ def plot_neuron_density_mip_xy_from_raw_axes(
                     raise ValueError(f"Column '{col}' has no numeric values.")
                 axis_ranges[col] = float(c.max() - c.min())
 
+            # Z is the axis with smallest range (depth is usually thinnest in lightsheet data)
             if z_col is None:
                 z_col = min(axis_ranges, key=axis_ranges.get)
 
@@ -103,6 +104,7 @@ def plot_neuron_density_mip_xy_from_raw_axes(
     x = xy[x_col].to_numpy(dtype=float)
     y = xy[y_col].to_numpy(dtype=float)
 
+    # 2D histogram of all neuron centers projected onto XY (MIP over Z)
     density_xy, x_edges, y_edges = np.histogram2d(x, y, bins=bins)
     image = np.log1p(density_xy.T) if log_scale else density_xy.T
 

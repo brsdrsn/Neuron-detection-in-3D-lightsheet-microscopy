@@ -19,6 +19,7 @@ from ultralytics import YOLO
 
 
 def parse_args():
+    """CLI for YOLO training; defaults match the v3 tagged-tiles dataset."""
     neurons_root = Path.home() / "Documents" / "neurons"
     default_data = neurons_root / "yolo_tagged_tiles_v3" / "data.yaml"
     default_project = Path(__file__).resolve().parent / "runs" / "detect"
@@ -49,8 +50,8 @@ def parse_args():
         default="0",  # use first CUDA GPU
         help="Training device, e.g. 0, 0,1, or cpu.",
     )
-    parser.add_argument("--workers", type=int, default=0)   # important on Windows
-    parser.add_argument("--batch", type=int, default=8)     # lower memory pressure
+    parser.add_argument("--workers", type=int, default=0)   # must be 0 on Windows (DataLoader)
+    parser.add_argument("--batch", type=int, default=8)     # lower if GPU OOM
     parser.add_argument("--close_mosaic", type=int, default=0)  # optional workaround
     return parser.parse_args()
 
@@ -67,6 +68,7 @@ def main():
         f"Epochs: {args.epochs}, imgsz: {args.imgsz}, device: {args.device}, patience: {args.patience}"
     )
 
+    # Fine-tune from COCO-pretrained yolov8n (or pass custom --model weights)
     model = YOLO(args.model)
     model.train(
         data=str(data_path),
